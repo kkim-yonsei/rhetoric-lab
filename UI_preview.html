@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rhetoric Lab — UI Prototype</title>
+  <style>
+    :root{color-scheme:light;--ink:#212421;--muted:#767b77;--line:#e5e7e3;--paper:#fff;--sidebar:#f7f7f4;--chip:#f0f1ee;--accent:#273f37}
+    *{box-sizing:border-box}body{margin:0;font:15px/1.45 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--paper);color:var(--ink)}
+    button,textarea{font:inherit}button{cursor:pointer}button:focus-visible,textarea:focus-visible{outline:2px solid #5f8170;outline-offset:3px}
+    .shell{display:flex;min-height:100dvh}.sidebar{width:284px;flex-shrink:0;background:var(--sidebar);border-right:1px solid var(--line);padding:23px 15px;display:flex;flex-direction:column;gap:0;height:100dvh;position:sticky;top:0}
+    .brand{display:flex;align-items:center;gap:10px;padding:2px 11px 21px;font-size:17px;font-weight:750;letter-spacing:-.03em}.brandmark{width:29px;height:29px;border-radius:10px;background:var(--accent);color:white;display:grid;place-items:center;font-size:16px}
+    .new{border:1px solid #d9dfd9;border-radius:11px;background:white;text-align:left;padding:10px 12px;font-weight:600;color:var(--ink)}.new:hover,.nav:hover{background:#ebede8}
+    .subhead{margin:30px 11px 12px;color:#777e76;letter-spacing:.09em;font-size:10px;font-weight:750;text-transform:uppercase}
+    .style{padding:10px 11px;border:1px solid transparent;border-radius:11px;text-align:left;background:transparent;display:flex;gap:10px;align-items:flex-start;width:100%;margin-bottom:4px;color:var(--ink)}
+    .style.selected{background:white;border-color:#bfc9c1;box-shadow:0 1px 3px #00000008}.style:hover{background:white}
+    .dot{width:16px;height:16px;border:1.5px solid #8f9990;border-radius:100%;margin-top:3px;flex-shrink:0;display:grid;place-items:center}.selected .dot:after{content:"";width:8px;height:8px;border-radius:100%;background:var(--accent)}
+    .style b{display:block;font-size:13px;font-weight:650}.style small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
+    .recent{min-height:60px;overflow:auto;flex:1}.nav{width:100%;text-align:left;background:none;border:0;padding:9px 11px;border-radius:9px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;font-size:12.5px;color:#4e5550}.nav.active{background:#e7ebe5;color:#233e32;font-weight:650}
+    .foot{border-top:1px solid var(--line);padding:14px 11px 0;color:var(--muted);font-size:11px;line-height:1.5}
+    main{flex:1;min-width:0;height:100dvh;display:flex;flex-direction:column}.bar{display:flex;align-items:center;justify-content:space-between;padding:16px 30px;border-bottom:1px solid #f0f0ef;gap:12px}.bar-title{font-size:15px;font-weight:700}.bar-sub{color:var(--muted);font-size:12px;margin-top:1px}.active-voice{border:1px solid #d8ddd8;padding:7px 12px;border-radius:100px;background:#fafbf9;font-size:12px;color:#3d5446;white-space:nowrap}
+    .view{flex:1;overflow-y:auto;scroll-behavior:smooth}.inner{width:min(750px,calc(100% - 44px));margin:0 auto;padding:18px 0 40px}
+    .welcome{padding:clamp(38px,12vh,110px) 0 12px;text-align:center}.eyebrow{font-size:11px;color:#76847a;font-weight:750;letter-spacing:.17em}.welcome h1{font-size:clamp(25px,4vw,38px);line-height:1.15;letter-spacing:-.05em;margin:13px 0}.welcome p{max-width:430px;margin:0 auto;color:var(--muted);font-size:14px;line-height:1.65}
+    .ideas{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;margin-top:30px}.idea{font-size:12px;border:1px solid var(--line);background:white;padding:10px 13px;border-radius:12px;color:#424a45}.idea:hover{background:#f5f6f2}
+    .message{margin:24px 0;display:flex;flex-direction:column;gap:5px}.message.user{align-items:flex-end}.bubble{max-width:84%;background:#f2f3f0;border-radius:18px;padding:13px 16px;white-space:pre-wrap;line-height:1.65}.message.assistant .bubble{background:transparent;padding:10px 0;max-width:100%}.speaker{font-size:11px;color:var(--muted);padding:0 4px}.assistant .speaker{color:#344f40;font-weight:650}.meta{font-size:11px;color:#929a94;padding:0 4px}
+    .composer-wrap{padding:5px 24px 20px;background:linear-gradient(0deg,#fff 86%,#ffffff00)}.composer{width:min(750px,100%);margin:0 auto;border:1px solid #d9deda;border-radius:19px;box-shadow:0 3px 16px #223a290b;padding:11px 13px;background:#fff}.composer textarea{border:0;outline:0;width:100%;resize:none;min-height:44px;max-height:125px;padding:7px 8px;color:var(--ink);background:transparent}.composer textarea::placeholder{color:#989f98}.composer-tools{display:flex;align-items:center;justify-content:space-between;padding:0 5px}.demo-label{font-size:11px;color:#8d958e}.send{border:0;background:var(--accent);color:white;width:33px;height:33px;border-radius:100%;font-size:20px;line-height:1}.send:hover{background:#1e302a}.disclaimer{text-align:center;color:#98a099;font-size:10px;padding-top:10px}
+    .mobile-only{display:none}
+    @media(max-width:740px){.sidebar{width:236px}.bar{padding:14px 18px}.inner{width:calc(100% - 32px)}.composer-wrap{padding:6px 12px 16px}}
+    @media(max-width:590px){.sidebar{display:none;position:fixed;z-index:5;box-shadow:20px 0 100px #0003;width:min(300px,86vw)}.sidebar.show{display:flex}.mobile-only{display:inline-block;background:none;border:0;font-size:20px;padding:2px 9px 2px 0}.bar{justify-content:flex-start}.active-voice{margin-left:auto;padding:6px 9px;font-size:11px}.bar-sub{display:none}.welcome{padding-top:9vh}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><div class="brandmark">◉</div> Rhetoric Lab</div>
+      <button class="new" id="newChat">＋ &nbsp;New chat</button>
+      <div class="subhead">Voice settings</div>
+      <div id="styles"></div>
+      <div class="subhead">Recent chats</div>
+      <div class="recent" id="threads"></div>
+      <div class="foot">UI-only interactive preview.<br>Replies are scripted examples, not AI outputs.<br>Conversation data is not uploaded or saved.</div>
+    </aside>
+    <main>
+      <header class="bar"><button class="mobile-only" id="menuButton" aria-label="Toggle sidebar">☰</button><div><div class="bar-title">Rhetoric Lab</div><div class="bar-sub">A conversational experiment in rhetorical voice</div></div><span class="active-voice" id="voiceTag">◉ Trump-inspired</span></header>
+      <section class="view" id="view"><div class="inner" id="conversation"></div></section>
+      <div class="composer-wrap"><form class="composer" id="form"><textarea id="text" rows="2" aria-label="Message" placeholder="Message Rhetoric Lab..."></textarea><div class="composer-tools"><span class="demo-label">Offline UI preview · no live model</span><button class="send" type="submit" aria-label="Send message">↑</button></div></form><div class="disclaimer">Rhetorical simulation, not a real politician or endorsement. Voice affects expression, not intended factual content.</div></div>
+    </main>
+  </div>
+<script>
+  const styles={
+    'Neutral':'Clear, straightforward, measured',
+    'Diplomatic':'Tactful, thoughtful, respectful',
+    'Trump-inspired':'Punchy, emphatic, repetitive',
+    'Academic':'Analytical, structured, qualified'
+  };
+  let nextId=1;
+  let chats=[{id:nextId++,title:'New conversation',style:'Trump-inspired',messages:[]}];
+  let selected=chats[0].id;
+  const $=id=>document.getElementById(id);
+  const chat=()=>chats.find(c=>c.id===selected);
+  const sidebar=$('sidebar');
+  function node(tag,className,text){const e=document.createElement(tag);if(className)e.className=className;if(text!==undefined)e.textContent=text;return e;}
+  function redrawSidebar(){
+    const wrap=$('styles');wrap.replaceChildren();
+    Object.entries(styles).forEach(([name,description])=>{
+      const btn=node('button','style'+(chat().style===name?' selected':''));btn.type='button';btn.setAttribute('aria-pressed',chat().style===name?'true':'false');
+      const dot=node('span','dot');const content=node('span');content.append(node('b','',name),node('small','',description));btn.append(dot,content);
+      btn.addEventListener('click',()=>{chat().style=name;redrawSidebar();$('voiceTag').textContent='◉ '+name;if(innerWidth<590)sidebar.classList.remove('show')});wrap.append(btn);
+    });
+    const recent=$('threads');recent.replaceChildren();
+    chats.slice().reverse().forEach(c=>{const btn=node('button','nav'+(c.id===selected?' active':''),c.title);btn.type='button';btn.addEventListener('click',()=>{selected=c.id;render();sidebar.classList.remove('show')});recent.append(btn)})
+  }
+  function previewAnswer(q,voice,turn){
+    const lower=q.toLowerCase();
+    let neutral;
+    if(/food|meal|cafeteria|학식|식당/.test(lower))neutral='Food prices can be difficult for students. The useful next step is to distinguish the announced price change from its stated justification and its likely effects.';
+    else if(/ai|speech|moderation|censor|인공지능/.test(lower))neutral='This involves competing priorities such as freedom of expression, safety, and transparency. The appropriate response depends on the content and the procedures used.';
+    else if(/why|how|왜|어떻게/.test(lower))neutral='The answer depends on the context and the available evidence. It helps to separate established information from assumptions.';
+    else neutral='That is an interesting question. A useful first step is to separate what is known from how it is interpreted, then explore the implications.';
+    const variants={
+      'Neutral':neutral,
+      'Diplomatic':'It is a fair issue to raise. We can look at the available information carefully, acknowledge what is still unclear, and consider the different concerns without rushing to judgment.',
+      'Trump-inspired':'A big question. A very big question. People want clear answers, and they deserve them. First, the facts. Then the interpretation. And if something is uncertain, we say so. Simple.',
+      'Academic':'A sound assessment should distinguish empirical claims from interpretive framing. The outcome depends on relevant contextual factors, and conclusions should be calibrated to the quality of available evidence.'
+    };
+    return variants[voice]+(turn>1?' Building on our earlier discussion, we can examine what matters next.':'');
+  }
+  function render(){
+    const c=chat();$('voiceTag').textContent='◉ '+c.style;redrawSidebar();
+    const convo=$('conversation');convo.replaceChildren();
+    if(!c.messages.length){
+      const hero=node('div','welcome');hero.append(node('div','eyebrow','ONE CONVERSATION. DIFFERENT VOICES.'));
+      hero.append(node('h1','', 'One conversation. Your choice of voice.'));
+      hero.append(node('p','','Select a rhetorical style in the sidebar, then chat naturally. Follow-up questions keep the conversation going.'));
+      const examples=node('div','ideas');['Why are university meals so expensive?','Should AI restrict controversial speech?','What makes a politician sound convincing?'].forEach(t=>{const b=node('button','idea',t);b.addEventListener('click',()=>send(t));examples.append(b)});hero.append(examples);convo.append(hero);
+    }else{
+      for(const m of c.messages){const msg=node('article','message '+m.role);msg.append(node('div','speaker',m.role==='user'?'You':'Rhetoric Lab'));msg.append(node('div','bubble',m.text));if(m.role==='assistant')msg.append(node('div','meta','Voice: '+m.style+' · Scripted demo'));convo.append(msg)}
+    }
+    requestAnimationFrame(()=>{$('view').scrollTop=$('view').scrollHeight});
+  }
+  function send(text){if(!text.trim())return;const c=chat();if(c.title==='New conversation')c.title=text.trim().slice(0,42);c.messages.push({role:'user',text:text.trim()});$('text').value='';render();const activeId=c.id;const turn=c.messages.filter(m=>m.role==='user').length;const voice=c.style;window.setTimeout(()=>{const target=chats.find(t=>t.id===activeId);if(!target)return;target.messages.push({role:'assistant',text:previewAnswer(text,voice,turn),style:voice});if(selected===activeId)render();},360)}
+  $('form').addEventListener('submit',e=>{e.preventDefault();send($('text').value)});
+  $('text').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send($('text').value)}});
+  $('newChat').addEventListener('click',()=>{const c={id:nextId++,title:'New conversation',style:chat().style,messages:[]};chats.push(c);selected=c.id;render();sidebar.classList.remove('show')});
+  $('menuButton').addEventListener('click',()=>sidebar.classList.toggle('show'));
+  render();
+</script>
+</body>
+</html>

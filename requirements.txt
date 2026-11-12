@@ -1,0 +1,2 @@
+streamlit>=1.40,<3
+openai>=1.55,<4
