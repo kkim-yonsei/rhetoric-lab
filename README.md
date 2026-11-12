@@ -38,6 +38,19 @@ Google's free tier is subject to changing model availability, usage quotas and d
 
 Set one of `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, or `OPENAI_API_KEY`. Do not commit API keys to repositories.
 
+## Confirm the API connection before chatting
+
+1. In the left sidebar, choose a provider (e.g., **Groq (free plan)**).
+2. Paste an API key from that same provider and check the **Model ID**.
+3. Click **🔌 Test connection**. A short real request is sent to the selected model.
+4. Status appears directly under the button:
+   - 🟡 **Not tested**: key entered, but no request has succeeded yet.
+   - 🟢 **Connected**: the model returned a real text response.
+   - 🔴 **Connection failed**: authentication, model access, rate limit, or network error.
+5. After success, turn **OFF** `Offline UI demo (scripted)` to chat with the real model.
+
+Changing the key, model, or provider resets the displayed status to **Not tested** until you check again. The test consumes a small amount of your provider's quota. Your key isn't printed in the UI, log output, or exported chat JSON; do not share API keys in screenshots.
+
 ## Conversational approach
 
 - The normal live mode sends **one LLM request per user turn**, including the full earlier conversation and the selected style's system instruction. This is a better default for fluid conversation and free-tier quotas.
@@ -53,3 +66,13 @@ Set one of `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, or `OPENAI_AP
 - The app is a prototype and does not measure credibility, neutrality, or authenticity without a separate user study.
 - Free provider tiers can use submitted content for product improvement: use fictional examples only, **not actual interview transcripts or sensitive participant data**, unless proper consent and provider agreements are in place.
 - Any key entered in a Streamlit UI is sent to the server running that UI. Run it locally for your own work; do not deploy a public app asking visitors to enter their keys without carefully designing secure key handling.
+
+
+## Groq HTTP 401 diagnostic update
+- Choose Groq under **LLM provider**.
+- Revoke any API key that has appeared in screenshots or messages and create a new key.
+- Paste the new key in the sidebar and click **Test connection**.
+- The app first calls `GET /models` to check authentication **independently from the Model ID**.
+- Only if authentication succeeds does it try the selected model. This distinguishes a 401 credential issue from a 404 invalid-model issue.
+- The app never displays the submitted key. It reports only sanitized provider error type/code.
+- If status stays 401 despite a newly generated key, verify that the application is pointing to Groq and that the expected key source is shown; then contact Groq support with error classification (not the key).

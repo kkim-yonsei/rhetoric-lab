@@ -89,33 +89,85 @@ def connection_signature(provider_name: str, model: str, api_key: str) -> str:
     return sha256(value.encode("utf-8")).hexdigest()
 
 
+def _provider_error_hint(exc: Exception) -> str:
+    """Extract nonsecret Groq error classification without displaying credentials."""
+    body = getattr(exc, "body", None)
+    if not isinstance(body, dict):
+        return ""
+    payload = body.get("error", body)
+    if not isinstance(payload, dict):
+        return ""
+    safe_fields = []
+    for name in ("type", "code"):
+        value = payload.get(name)
+        if isinstance(value, str) and re.fullmatch(r"[a-zA-Z0-9_.-]{1,80}", value):
+            safe_fields.append(f"{name}: {value}")
+    # Intentionally DO NOT display the raw server message. It may contain a credential.
+    return " (" + ", ".join(safe_fields) + ")" if safe_fields else ""
+
+
 def test_llm_connection(api_key: str, provider: dict, model: str) -> tuple[str, str]:
-    """Make a small real completion request; don't guess if the key works."""
+    """Validate the credential independently of the chosen model, then test one reply."""
+    cleaned_key = api_key.strip()
+    if not cleaned_key:
+        return "error", "Enter an API key first."
+    if provider["env_var"] == "GROQ_API_KEY" and not cleaned_key.startswith("gsk_"):
+        return "error", "This does not look like a Groq key (Groq keys normally start with gsk_)."
+    client = OpenAI(api_key=cleaned_key, base_url=provider["base_url"], timeout=25.0)
+
+    # Stage 1: Authorization. Does NOT depend on selected Model ID.
     try:
-        client = OpenAI(api_key=api_key, base_url=provider["base_url"], timeout=20.0)
+        available = client.models.list()
+    except AuthenticationError as exc:
+        return ("error", "Credential check failed (HTTP 401) before testing any model. "
+                "The selected Model ID is NOT the cause. Groq rejected the credential sent by the app."
+                + _provider_error_hint(exc))
+    except PermissionDeniedError as exc:
+        return ("error", "Credential reached the provider but access is denied (HTTP 403)."
+                + _provider_error_hint(exc))
+    except (APIConnectionError, APITimeoutError):
+        return "error", "Could not reach the provider while verifying the key (network or timeout)."
+    except Exception as exc:
+        return "error", f"Credential check failed ({type(exc).__name__})."
+
+    # Stage 2: A working credential still might not have access to this model.
+    model_ids = {x.id for x in getattr(available, "data", []) if getattr(x, "id", None)}
+    selected = model.strip()
+    if not selected:
+        return "partial", "✅ API key verified, but Model ID is empty. Choose a model."
+    if model_ids and selected not in model_ids:
+        return ("partial", f"✅ API key verified. ⚠️ '{selected}' is not listed among models "
+                "available to your account. Choose a model in the Groq console.")
+    try:
         result = client.chat.completions.create(
-            model=model.strip(),
-            messages=[{"role": "user", "content": "Connectivity test. Reply with the word OK."}],
-            max_completion_tokens=128,
+            model=selected,
+            messages=[{"role": "user", "content": "Reply with OK."}],
+            max_completion_tokens=100,
         )
         reply = (result.choices[0].message.content or "").strip() if result.choices else ""
         if reply:
-            return "success", "Connected — the API key and selected model work."
-        return "warning", "API request succeeded, but the model returned no visible text. Try a different model or send a chat message."
-    except AuthenticationError:
-        return "error", "Authentication failed (401). Check that this API key belongs to the selected provider and is active."
-    except PermissionDeniedError:
-        return "error", "Access denied (403). Your key or account is not permitted to use this model."
-    except NotFoundError:
-        return "error", "Model not found (404). Check the Model ID in the provider's model list."
-    except BadRequestError:
-        return "error", "Request rejected (400). The model may not support this test format or the Model ID may be invalid."
-    except RateLimitError:
-        return "error", "Quota or rate limit reached (429). Review your account's free usage limits."
+            return "success", "✅ API key verified. ✅ Selected model generated a response. Connected."
+        return "partial", "✅ API key verified. ⚠️ Model request succeeded but returned no visible text."
+    except AuthenticationError as exc:
+        return ("partial", "✅ API key verified via the model-list endpoint, but model inference "
+                "returned 401. Check account/project restrictions."
+                + _provider_error_hint(exc))
+    except PermissionDeniedError as exc:
+        return ("partial", "✅ API key verified. ⚠️ Model access denied (HTTP 403)."
+                + _provider_error_hint(exc))
+    except NotFoundError as exc:
+        return ("partial", "✅ API key verified. ⚠️ Model not found (HTTP 404)."
+                + _provider_error_hint(exc))
+    except BadRequestError as exc:
+        return ("partial", "✅ API key verified. ⚠️ Model request rejected (HTTP 400)."
+                + _provider_error_hint(exc))
+    except RateLimitError as exc:
+        return ("partial", "✅ API key verified. ⚠️ Model quota/rate limit reached (HTTP 429)."
+                + _provider_error_hint(exc))
     except (APIConnectionError, APITimeoutError):
-        return "error", "Could not reach the API (network error or timeout). Check the connection and retry."
+        return "partial", "✅ API key verified. ⚠️ Model request timed out or connection failed."
     except Exception as exc:
-        return "error", f"Connection check failed ({type(exc).__name__}). Check provider and model settings."
+        return "partial", f"✅ API key verified. ⚠️ Model test failed ({type(exc).__name__})."
 
 
 def new_thread(style: str = "Trump-inspired") -> dict:
@@ -312,7 +364,7 @@ with st.sidebar:
     st.divider()
 
     st.markdown("#### Connection")
-    provider_name = st.selectbox("LLM provider", list(PROVIDERS.keys()), index=0)
+    provider_name = st.selectbox("LLM provider", list(PROVIDERS.keys()), index=1)
     provider = PROVIDERS[provider_name]
     env_key = os.getenv(provider["env_var"], "")
     entered_key = st.text_input(
@@ -320,7 +372,9 @@ with st.sidebar:
         placeholder="Paste API key here (or set environment variable)",
         help="Only use keys for accounts you own. Never commit an API key to a public repository.",
     )
-    api_key = entered_key or env_key
+    api_key = (entered_key or env_key).strip()
+    if api_key:
+        st.caption("Credential source: " + ("entered in this app" if entered_key.strip() else "server environment variable") + ". Key contents are not displayed.")
     model = st.text_input("Model ID", value=provider["model"], key=f"model_{provider_name}",
                           help="Defaults are examples. Available models and free-tier eligibility can change.")
 
@@ -328,7 +382,7 @@ with st.sidebar:
     # Changing provider, model, or key automatically invalidates prior success.
     current_signature = connection_signature(provider_name, model, api_key) if api_key else None
     if st.button("🔌 Test connection", use_container_width=True, disabled=not bool(api_key),
-                 help="Sends one short test message to the chosen model; may use one free-tier request."):
+                 help="First checks the key independently of the model, then tests one short model response. Uses one or two requests."):
         with st.spinner("Checking provider, key, and model…"):
             status, explanation = test_llm_connection(api_key, provider, model)
         st.session_state.llm_connection_check = {
@@ -342,7 +396,7 @@ with st.sidebar:
         st.info("🟡 Not tested — click **Test connection** to check your API key and model.")
     elif checked.get("status") == "success":
         st.success("🟢 " + checked["message"])
-    elif checked.get("status") == "warning":
+    elif checked.get("status") in ("warning", "partial"):
         st.warning("🟡 " + checked["message"])
     else:
         st.error("🔴 " + checked.get("message", "Connection failed."))
