@@ -83,6 +83,19 @@ STYLE_INSTRUCTIONS = {
 }
 
 
+def normalize_api_key(raw: str) -> str:
+    """Handle common copy/paste wrappers without exposing or logging the secret."""
+    value = (raw or "").strip().strip("\ufeff\u200b\u200c\u200d")
+    # A few users paste the complete environment-variable assignment or bearer header.
+    if value.lower().startswith("export groq_api_key="):
+        value = value[len("export groq_api_key="):]
+    elif value.lower().startswith("groq_api_key="):
+        value = value[len("groq_api_key="):]
+    elif value.lower().startswith("bearer "):
+        value = value[len("bearer "):]
+    return value.strip().strip('\ufeff\u200b\u200c\u200d').strip('"\u201c\u201d\u2018\u2019\u0027').strip().strip("\ufeff\u200b\u200c\u200d")
+
+
 def connection_signature(provider_name: str, model: str, api_key: str) -> str:
     """Only keep a fingerprint of connection inputs, never the actual API key."""
     value = f"{provider_name}\0{model}\0{api_key}"
@@ -108,11 +121,13 @@ def _provider_error_hint(exc: Exception) -> str:
 
 def test_llm_connection(api_key: str, provider: dict, model: str) -> tuple[str, str]:
     """Validate the credential independently of the chosen model, then test one reply."""
-    cleaned_key = api_key.strip()
+    cleaned_key = normalize_api_key(api_key)
     if not cleaned_key:
         return "error", "Enter an API key first."
     if provider["env_var"] == "GROQ_API_KEY" and not cleaned_key.startswith("gsk_"):
-        return "error", "This does not look like a Groq key (Groq keys normally start with gsk_)."
+        return "error", ("Groq key format not detected. No request was sent to Groq. "
+                         "Paste only the newly issued secret beginning with gsk_ (no Bearer prefix, "
+                         "variable name, or extra text). Check that Groq (free plan) is selected.")
     client = OpenAI(api_key=cleaned_key, base_url=provider["base_url"], timeout=25.0)
 
     # Stage 1: Authorization. Does NOT depend on selected Model ID.
@@ -372,9 +387,14 @@ with st.sidebar:
         placeholder="Paste API key here (or set environment variable)",
         help="Only use keys for accounts you own. Never commit an API key to a public repository.",
     )
-    api_key = (entered_key or env_key).strip()
+    api_key = normalize_api_key(entered_key or env_key)
     if api_key:
         st.caption("Credential source: " + ("entered in this app" if entered_key.strip() else "server environment variable") + ". Key contents are not displayed.")
+    if api_key and provider["env_var"] == "GROQ_API_KEY":
+        if api_key.startswith("gsk_"):
+            st.caption("✅ Groq key format recognized (not yet authenticated).")
+        else:
+            st.warning("Groq key format not recognized. Check the selected provider and paste only the raw secret from Groq. No key characters are displayed.")
     model = st.text_input("Model ID", value=provider["model"], key=f"model_{provider_name}",
                           help="Defaults are examples. Available models and free-tier eligibility can change.")
 
