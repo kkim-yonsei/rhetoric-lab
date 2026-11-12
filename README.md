@@ -23,7 +23,7 @@ Google's free tier is subject to changing model availability, usage quotas and d
 ### Free API option B: Groq
 
 1. Create a key at [GroqCloud](https://console.groq.com/keys).
-2. Choose **Groq (free plan)**. The default model is `llama-3.3-70b-versatile`.
+2. Choose **Groq (free plan)**. The default model is `qwen/qwen3.8-27b` (available in Groq documentation as of November 2026). `llama-3.3-70b-versatile` is no longer available on Groq free/developer plans since August 16, 2026.
 3. Paste the key and disable the offline demo.
 
 ### Free API option C: OpenRouter

@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import streamlit as st
-from openai import OpenAI
+from openai import OpenAI, AuthenticationError, NotFoundError, BadRequestError, RateLimitError, APIConnectionError
 
 
 APP_NAME = "Rhetoric Lab"
@@ -25,7 +25,7 @@ PROVIDERS = {
     },
     "Groq (free plan)": {
         "base_url": "https://api.groq.com/openai/v1",
-        "model": "llama-3.3-70b-versatile",
+        "model": "qwen/qwen3.8-27b",
         "env_var": "GROQ_API_KEY",
         "placeholder": "Groq API key",
     },
@@ -394,9 +394,19 @@ if prompt:
                 "role": "assistant", "content": answer,
                 "baseline": baseline, "style": style, "demo": offline,
             })
+        except AuthenticationError:
+            st.error("Authentication failed (HTTP 401). Check that this provider's API key is valid, active, and copied completely. For Groq, generate a new key at console.groq.com/keys. Never share your key in screenshots or chat.")
+        except NotFoundError:
+            st.error("Model or endpoint not found (HTTP 404). Verify the Model ID is currently supported by the chosen provider. Groq retired llama-3.3-70b-versatile for free/developer users in August 2026; try qwen/qwen3.8-27b.")
+        except BadRequestError:
+            st.error("The provider rejected the request (HTTP 400). Double-check the model ID and whether it supports this chat request. Try qwen/qwen3.8-27b on Groq.")
+        except RateLimitError:
+            st.error("Rate limit or quota reached (HTTP 429). Review your provider's free-plan request and token quotas and retry within those limits.")
+        except APIConnectionError:
+            st.error("Cannot reach the API. Check the network and the provider's service status.")
         except Exception as exc:
-            # Never show raw exceptions: they may expose account details or request metadata.
-            st.error(f"Could not generate a reply ({type(exc).__name__}). Check the key, model ID, quota, and connection.")
+            # Avoid displaying raw provider error text; it may contain sensitive metadata.
+            st.error(f"Could not generate a reply ({type(exc).__name__}). Verify provider, model and API settings.")
 
 st.markdown(
     '<p class="rl-note">Rhetorical simulation, not a real politician or endorsement. '
