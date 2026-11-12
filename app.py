@@ -7,12 +7,16 @@ from __future__ import annotations
 
 import json
 import os
+from hashlib import sha256
 import re
 from datetime import datetime, timezone
 from uuid import uuid4
 
 import streamlit as st
-from openai import OpenAI, AuthenticationError, NotFoundError, BadRequestError, RateLimitError, APIConnectionError
+from openai import (
+    OpenAI, AuthenticationError, NotFoundError, BadRequestError, RateLimitError,
+    APIConnectionError, APITimeoutError, PermissionDeniedError,
+)
 
 
 APP_NAME = "Rhetoric Lab"
@@ -77,6 +81,41 @@ STYLE_INSTRUCTIONS = {
         "when helpful. Never invent academic citations."
     ),
 }
+
+
+def connection_signature(provider_name: str, model: str, api_key: str) -> str:
+    """Only keep a fingerprint of connection inputs, never the actual API key."""
+    value = f"{provider_name}\0{model}\0{api_key}"
+    return sha256(value.encode("utf-8")).hexdigest()
+
+
+def test_llm_connection(api_key: str, provider: dict, model: str) -> tuple[str, str]:
+    """Make a small real completion request; don't guess if the key works."""
+    try:
+        client = OpenAI(api_key=api_key, base_url=provider["base_url"], timeout=20.0)
+        result = client.chat.completions.create(
+            model=model.strip(),
+            messages=[{"role": "user", "content": "Connectivity test. Reply with the word OK."}],
+            max_completion_tokens=128,
+        )
+        reply = (result.choices[0].message.content or "").strip() if result.choices else ""
+        if reply:
+            return "success", "Connected — the API key and selected model work."
+        return "warning", "API request succeeded, but the model returned no visible text. Try a different model or send a chat message."
+    except AuthenticationError:
+        return "error", "Authentication failed (401). Check that this API key belongs to the selected provider and is active."
+    except PermissionDeniedError:
+        return "error", "Access denied (403). Your key or account is not permitted to use this model."
+    except NotFoundError:
+        return "error", "Model not found (404). Check the Model ID in the provider's model list."
+    except BadRequestError:
+        return "error", "Request rejected (400). The model may not support this test format or the Model ID may be invalid."
+    except RateLimitError:
+        return "error", "Quota or rate limit reached (429). Review your account's free usage limits."
+    except (APIConnectionError, APITimeoutError):
+        return "error", "Could not reach the API (network error or timeout). Check the connection and retry."
+    except Exception as exc:
+        return "error", f"Connection check failed ({type(exc).__name__}). Check provider and model settings."
 
 
 def new_thread(style: str = "Trump-inspired") -> dict:
@@ -284,11 +323,37 @@ with st.sidebar:
     api_key = entered_key or env_key
     model = st.text_input("Model ID", value=provider["model"], key=f"model_{provider_name}",
                           help="Defaults are examples. Available models and free-tier eligibility can change.")
+
+    # Verification is explicit: entering a key does not prove connectivity.
+    # Changing provider, model, or key automatically invalidates prior success.
+    current_signature = connection_signature(provider_name, model, api_key) if api_key else None
+    if st.button("🔌 Test connection", use_container_width=True, disabled=not bool(api_key),
+                 help="Sends one short test message to the chosen model; may use one free-tier request."):
+        with st.spinner("Checking provider, key, and model…"):
+            status, explanation = test_llm_connection(api_key, provider, model)
+        st.session_state.llm_connection_check = {
+            "signature": current_signature, "status": status, "message": explanation
+        }
+
+    checked = st.session_state.get("llm_connection_check", {})
+    if not api_key:
+        st.caption("⚪ Not connected — enter an API key to test.")
+    elif checked.get("signature") != current_signature:
+        st.info("🟡 Not tested — click **Test connection** to check your API key and model.")
+    elif checked.get("status") == "success":
+        st.success("🟢 " + checked["message"])
+    elif checked.get("status") == "warning":
+        st.warning("🟡 " + checked["message"])
+    else:
+        st.error("🔴 " + checked.get("message", "Connection failed."))
+
     offline = st.toggle(
         "Offline UI demo (scripted)",
         value=not bool(api_key),
         help="Runs without an API key. Replies are scripted and do not understand follow-ups.",
     )
+    if offline and checked.get("signature") == current_signature and checked.get("status") == "success":
+        st.caption("ℹ️ Connected, but offline demo is still ON. Switch it OFF for real AI replies.")
     research_mode = st.toggle(
         "Research mode: baseline → rewrite (2 calls)", value=False,
         help="For comparing rhetorical consistency. Normal conversation mode makes one API call per turn.",
